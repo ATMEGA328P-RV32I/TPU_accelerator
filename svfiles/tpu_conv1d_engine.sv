@@ -1,4 +1,18 @@
-// Copyright 2026 Atul Kumar
+// Custom Tensor Processing Unit (TPU) for 1D CNN Inference
+// Copyright (C) 2026 Atul Kumar
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published
+// by the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 module tpu_conv1d_engine #(parameter int ARRAY_SIZE=5,parameter int D_WIDTH=16)(
     input logic clk,rst_n,start, // start acts as the trigger to wake up this engine
     output logic engine_done,// engine_done is flagged when convolution gets finished
