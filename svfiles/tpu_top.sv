@@ -16,98 +16,83 @@
 module tpu_top #(
     parameter int D_WIDTH = 16
 )(
-    input  logic clk,
-    input  logic rst_n,
+    input logic clk,
+    input logic rst_n,
 
-    input  logic        host_start,
-    output logic        host_done,
+    input logic host_start,
+    output logic host_done,
 
-    // --- Host 32-bit Programming Interface ---
-    input  logic        host_iram_we,
-    input  logic [9:0]  host_iram_addr, 
-    input  logic [31:0] host_iram_wdata,
+    input logic host_iram_we,
+    input logic [9:0]  host_iram_addr, 
+    input logic [31:0] host_iram_wdata,
 
-    input  logic        host_wram_we,
-    input  logic [39:0] host_wram_addr, 
-    input  logic signed [D_WIDTH-1:0] host_wram_wdata,
+    input logic host_wram_we,
+    input logic [39:0] host_wram_addr, 
+    input logic signed [D_WIDTH-1:0] host_wram_wdata,
 
-    input  logic        host_uab_we,
-    input  logic [39:0] host_uab_addr,  
-    input  logic signed [31:0] host_uab_wdata [0:3],
+    input logic host_uab_we,
+    input logic [39:0] host_uab_addr,  
+    input logic signed [31:0] host_uab_wdata [0:3],
     
     output logic signed [31:0] host_uab_rdata [0:3],
-
-    // --- NEW CLEAN OUTPUTS FOR DEMO ---
-    output logic        anomaly_flag,     
+    output logic anomaly_flag,     
     output logic [7:0]  prob_normal_out,  
     output logic [7:0]  prob_anomaly_out  
 );
 
-    // ==========================================
-    // 1. 128-bit Instruction RAM & Gearbox
-    // ==========================================
     logic [127:0] iram [0:255];
     logic [127:0] inst_shadow_reg;
-    logic [7:0]   inst_pc;
+    logic [7:0]  inst_pc;
     logic [127:0] current_instruction;
 
     always_ff @(posedge clk) begin
         if (host_iram_we) begin
-            if (host_iram_addr[1:0] == 2'b00) inst_shadow_reg[31:0]   <= host_iram_wdata;
-            if (host_iram_addr[1:0] == 2'b01) inst_shadow_reg[63:32]  <= host_iram_wdata;
-            if (host_iram_addr[1:0] == 2'b10) inst_shadow_reg[95:64]  <= host_iram_wdata;
+            if (host_iram_addr[1:0] == 2'b00) inst_shadow_reg[31:0]  <= host_iram_wdata;
+            if (host_iram_addr[1:0] == 2'b01) inst_shadow_reg[63:32] <= host_iram_wdata;
+            if (host_iram_addr[1:0] == 2'b10) inst_shadow_reg[95:64] <= host_iram_wdata;
             if (host_iram_addr[1:0] == 2'b11) iram[host_iram_addr[9:2]] <= {host_iram_wdata, inst_shadow_reg[95:0]};
         end
         current_instruction <= iram[inst_pc];
     end
 
-    // ==========================================
-    // 2. Weight RAM (4X Expanded: 4096 Depth)
-    // ==========================================
     logic signed [D_WIDTH-1:0] wram [0:4095];
-    logic        wram_re;
+    logic wram_re;
     logic [39:0] wram_raddr;
     logic signed [D_WIDTH-1:0] wram_rdata;
 
     always_ff @(posedge clk) begin
         if (host_wram_we) wram[host_wram_addr[11:0]] <= host_wram_wdata;
-        if (wram_re)      wram_rdata <= wram[wram_raddr[11:0]];
+        if (wram_re) wram_rdata <= wram[wram_raddr[11:0]];
     end
 
-    // ==========================================
-    // Internal Wires
-    // ==========================================
     logic start_load, start_conv, start_pool, start_dense, relu_en, any_engine_done;
     logic [39:0] src_addr, dest_addr;
-    logic [7:0]  config_ptr;
+    logic [7:0] config_ptr;
 
-    logic        conv_uab_re, conv_uab_we, conv_done, conv_wram_re;
+    logic conv_uab_re, conv_uab_we, conv_done, conv_wram_re;
     logic [39:0] conv_uab_raddr, conv_uab_waddr, conv_wram_raddr;
     logic signed [31:0] conv_uab_wdata [0:3];
 
-    logic        pool_uab_re, pool_uab_we, pool_done;
+    logic pool_uab_re, pool_uab_we, pool_done;
     logic [39:0] pool_uab_raddr, pool_uab_waddr;
     logic signed [31:0] pool_uab_wdata [0:3];
 
-    logic        dense_uab_re, dense_uab_we, dense_done, dense_wram_re;
+    logic dense_uab_re, dense_uab_we, dense_done, dense_wram_re;
     logic [39:0] dense_uab_raddr, dense_uab_waddr, dense_wram_raddr;
     logic signed [31:0] dense_uab_wdata [0:3];
 
-    logic        master_uab_re, master_uab_we;
+    logic master_uab_re, master_uab_we;
     logic [39:0] master_uab_raddr, master_uab_waddr;
     logic signed [31:0] master_uab_wdata [0:3], master_uab_rdata [0:3];
 
-    // ==========================================
-    // Safe Multiplexer (Traffic Cop)
-    // ==========================================
     typedef enum logic [1:0] {HOST, CONV, POOL, DENSE} owner_t;
     owner_t bus_owner;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) bus_owner <= HOST;
         else begin
-            if (start_conv)       bus_owner <= CONV;
-            else if (start_pool)  bus_owner <= POOL;
+            if (start_conv) bus_owner <= CONV;
+            else if (start_pool) bus_owner <= POOL;
             else if (start_dense) bus_owner <= DENSE;
             else if (any_engine_done) bus_owner <= HOST;
         end
@@ -135,9 +120,7 @@ module tpu_top #(
 
     assign any_engine_done = conv_done | pool_done | dense_done;
     
-    // ==========================================
-    // Hardware Softmax & Output Routing
-    // ==========================================
+    
     logic [7:0] p_norm, p_anom;
 
     tpu_softmax softmax_inst (
@@ -147,7 +130,7 @@ module tpu_top #(
         .prob_anomaly(p_anom)
     );
 
-    assign prob_normal_out  = p_norm;
+    assign prob_normal_out = p_norm;
     assign prob_anomaly_out = p_anom;
     assign anomaly_flag = (p_anom > p_norm) ? 1'b1 : 1'b0;
 
@@ -158,9 +141,7 @@ module tpu_top #(
         host_uab_rdata[3] = master_uab_rdata[3];
     end
 
-    // ==========================================
-    // Module Instantiations
-    // ==========================================
+    
     tpu_controller ctrl_inst (
         .clk(clk), .rst_n(rst_n), .tpu_start(host_start), .tpu_done(host_done),
         .inst_pc(inst_pc), .inst_data(current_instruction),
