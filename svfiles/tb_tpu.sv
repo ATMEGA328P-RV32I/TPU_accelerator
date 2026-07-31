@@ -17,22 +17,22 @@
 
 module tb_tpu();
     logic clk, rst_n, host_start, host_done;
-    logic        host_iram_we;
-    logic [9:0]  host_iram_addr;
+    logic host_iram_we;
+    logic [9:0] host_iram_addr;
     logic [31:0] host_iram_wdata;
     
-    logic        host_wram_we;
+    logic host_wram_we;
     logic [39:0] host_wram_addr;
     logic signed [15:0] host_wram_wdata;
     
-    logic        host_uab_we;
+    logic host_uab_we;
     logic [39:0] host_uab_addr;
     logic signed [31:0] host_uab_wdata [0:3];
     logic signed [31:0] host_uab_rdata [0:3];
     
-    logic        anomaly_flag;
-    logic [7:0]  prob_normal_out;
-    logic [7:0]  prob_anomaly_out;
+    logic anomaly_flag;
+    logic [7:0] prob_normal_out;
+    logic [7:0] prob_anomaly_out;
 
     tpu_top #(.D_WIDTH(16)) dut(.*);
     always #5 clk = ~clk;
@@ -40,17 +40,14 @@ module tb_tpu();
     task program_inst(input [7:0] pc, input [127:0] data);
         begin
             host_iram_we = 1;
-            host_iram_addr = {pc[7:0], 2'b00}; host_iram_wdata = data[31:0];   #10;
-            host_iram_addr = {pc[7:0], 2'b01}; host_iram_wdata = data[63:32];  #10;
-            host_iram_addr = {pc[7:0], 2'b10}; host_iram_wdata = data[95:64];  #10;
+            host_iram_addr = {pc[7:0], 2'b00}; host_iram_wdata = data[31:0]; #10;
+            host_iram_addr = {pc[7:0], 2'b01}; host_iram_wdata = data[63:32]; #10;
+            host_iram_addr = {pc[7:0], 2'b10}; host_iram_wdata = data[95:64]; #10;
             host_iram_addr = {pc[7:0], 2'b11}; host_iram_wdata = data[127:96]; #10;
             host_iram_we = 0;
         end
     endtask
-
-    // ========================================================================
-    // PASTE YOUR 260 SAMPLES FROM PYTHON RIGHT HERE
-    // ========================================================================
+    
     logic[15:0] ecg_data[0:259]='{
 16'hFFBD,
 16'hFFC5,
@@ -314,9 +311,6 @@ module tb_tpu();
 16'h0016
 
 };
-    // ========================================================================
-
-    // EXACT PYTORCH WEIGHTS HARDCODED BELOW
     logic signed [15:0] conv_weights [0:19] = '{
         16'h008C,
 16'h00C8,
@@ -1428,7 +1422,6 @@ module tb_tpu();
             end
         end
         
-        // ADD THESE TWO LINES TO PUSH DENSE BIASES TO WRAM
         host_wram_addr = wram_idx; host_wram_wdata = dense_biases[0]; wram_idx++; #10;
         host_wram_addr = wram_idx; host_wram_wdata = dense_biases[1]; wram_idx++; #10;
         
